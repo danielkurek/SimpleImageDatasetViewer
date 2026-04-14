@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from PySide6.QtGui import QPixmap, QImage, QIntValidator, QShortcut, QKeySequence
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 
 def pil_to_pixmap(pil_img):
@@ -71,8 +71,15 @@ class DatasetViewer(QMainWindow):
         self.setWindowTitle("Hugging Face Dataset Viewer")
         self.resize(800, 700)
 
+        # Timer setup for Leading-Edge Debouncing
+        self.load_timer = QTimer(self)
+        self.load_timer.setSingleShot(True)
+        self.load_timer.setInterval(350) # debounce interval in ms
+        self.load_timer.timeout.connect(self.on_load_timeout)
+        self.pending_load = False
+
         self.init_ui()
-        self.load_item()
+        self.schedule_load() # Initial load
 
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -161,12 +168,17 @@ class DatasetViewer(QMainWindow):
         self.content_layout.addStretch()
         self.text_labels = {}
 
-    def load_item(self):
+    def update_index_ui(self):
+        """Updates purely the UI navigational states to react instantly"""
         split_data = self.dataset[self.current_split]
         max_idx = len(split_data) - 1
 
         if max_idx < 0:
-            self.image_label.setText("Dataset split is empty.")
+            self.btn_prev.setEnabled(False)
+            self.btn_next.setEnabled(False)
+            self.index_input.setText("0")
+            self.max_index_label.setText("/ 0")
+            self.index_input.setValidator(QIntValidator(0, 0, self))
             return
 
         # UI State updates
@@ -177,6 +189,38 @@ class DatasetViewer(QMainWindow):
         self.index_input.setText(str(self.current_index))
         self.max_index_label.setText(f"/ {max_idx}")
         self.index_input.setValidator(QIntValidator(0, max_idx, self))
+
+    def schedule_load(self):
+        """Smart debouncing: Execs immediately on normal clicks, throttles rapid holds."""
+        self.update_index_ui()
+        
+        if not self.load_timer.isActive():
+            # Leading Edge: The app has been idle. 
+            # We defer the actual load via a 0-ms timer so the UI event loop 
+            # has a chance to physically draw the index update on screen first.
+            QTimer.singleShot(0, self.load_item_data)
+            self.load_timer.start() # Start a cooldown window
+            self.pending_load = False
+        else:
+            # Trailing Edge: User is holding the key. Delay loading until they stop.
+            self.pending_load = True
+            self.load_timer.start() # Resets the cooldown timer
+
+    def on_load_timeout(self):
+        """Called when the timer naturally finishes (user stopped spamming)"""
+        if self.pending_load:
+            self.load_item_data()
+            self.pending_load = False
+
+    def load_item_data(self):
+        """Performs actual dataset reading and heavy image operations."""
+        split_data = self.dataset[self.current_split]
+        max_idx = len(split_data) - 1
+
+        if max_idx < 0:
+            self.image_label.clear()
+            self.image_label.setText("Dataset split is empty.")
+            return
 
         # Fetch row dictionary
         row = split_data[self.current_index]
@@ -225,18 +269,18 @@ class DatasetViewer(QMainWindow):
     def on_prev(self):
         if self.current_index > 0:
             self.current_index -= 1
-            self.load_item()
+            self.schedule_load()
 
     def on_next(self):
         max_idx = len(self.dataset[self.current_split]) - 1
         if self.current_index < max_idx:
             self.current_index += 1
-            self.load_item()
+            self.schedule_load()
 
     def on_split_changed(self, split_name):
         self.current_split = split_name
         self.current_index = 0
-        self.load_item()
+        self.schedule_load()
         
         # Return focus to window so arrows work right after changing splits
         self.setFocus() 
@@ -247,7 +291,7 @@ class DatasetViewer(QMainWindow):
             max_idx = len(self.dataset[self.current_split]) - 1
             idx = max(0, min(idx, max_idx)) # Clamp to valid range
             self.current_index = idx
-            self.load_item()
+            self.schedule_load()
             
             # Return focus to window
             self.setFocus()
