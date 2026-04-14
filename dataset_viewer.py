@@ -94,16 +94,21 @@ class WrappingTextEdit(QTextEdit):
 
 
 class DatasetViewer(QMainWindow):
-    def __init__(self, dataset, image_col, text_cols):
+    def __init__(self, dataset, image_col, text_cols, dataset_path = None):
         super().__init__()
         self.dataset = dataset
+        self.dataset_path = dataset_path
         self.image_col = image_col
         self.text_cols = text_cols
         
         self.current_split = list(dataset.keys())[0]
         self.current_index = 0
 
-        self.setWindowTitle("Hugging Face Dataset Viewer")
+        title = "Hugging Face Dataset Viewer"
+        if self.dataset_path is not None:
+            title += f" [{dataset_path}]"
+        self.setWindowTitle(title)
+        
         self.resize(800, 700)
 
         # Timer setup for Leading-Edge Debouncing
@@ -359,7 +364,7 @@ def main():
 
     app = QApplication(sys.argv)
     
-    viewer = DatasetViewer(ds, args.image_col, args.text_cols)
+    viewer = DatasetViewer(ds, args.image_col, args.text_cols, dataset_path=args.dataset)
     viewer.show()
     
     sys.exit(app.exec())
