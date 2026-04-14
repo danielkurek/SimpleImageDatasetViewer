@@ -6,10 +6,12 @@ from datasets import load_dataset
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QLineEdit, QScrollArea, QFormLayout, 
-    QSizePolicy, QSplitter
+    QSizePolicy, QSplitter, QTextEdit, QFrame
 )
 
-from PySide6.QtGui import QPixmap, QImage, QIntValidator, QShortcut, QKeySequence
+from PySide6.QtGui import (
+    QPixmap, QImage, QIntValidator, QShortcut, QKeySequence, QTextOption
+)
 from PySide6.QtCore import Qt, QTimer
 
 
@@ -56,6 +58,39 @@ class ResizingImageLabel(QLabel):
                 Qt.SmoothTransformation
             )
             super().setPixmap(scaled)
+
+
+class WrappingTextEdit(QTextEdit):
+    """A text editor acting as a Label that breaks long text anywhere if it lacks spaces, 
+       while auto-resizing vertically to fit its wrapped contents."""
+    def __init__(self):
+        super().__init__()
+        self.setReadOnly(True)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Blend flawlessly with window layout background
+        self.setStyleSheet("background: transparent;")
+        
+        # The key to breaking words anywhere or at boundaries
+        self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        
+        # Discard the document's inherent padding to align exactly like a standard QLabel
+        self.document().setDocumentMargin(0)
+        
+        # Whenever width dynamically changes text wrapping, we recalculate and fix height
+        self.document().documentLayout().documentSizeChanged.connect(self.adjust_height)
+
+    def adjust_height(self, size):
+        new_height = int(size.height()) + 2  # Added 2 pixels buffer margin
+        # Ensure it doesn't recurse infinitely due to resize events 
+        if self.maximumHeight() != new_height:
+            self.setFixedHeight(new_height)
+
+    def setText(self, text):
+        self.setPlainText(str(text))
 
 
 class DatasetViewer(QMainWindow):
@@ -254,9 +289,9 @@ class DatasetViewer(QMainWindow):
 
             for col in cols_to_show:
                 key_label = QLabel(f"<b>{col}:</b>")
-                val_label = QLabel()
-                val_label.setWordWrap(True)  # Force word wrapping for long transcriptions
-                val_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                
+                # Custom Auto-Resizing QTextEdit Widget 
+                val_label = WrappingTextEdit()
                 
                 self.text_layout.addRow(key_label, val_label)
                 self.text_labels[col] = val_label
