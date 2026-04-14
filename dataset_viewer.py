@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QComboBox, QLineEdit, QScrollArea, QFormLayout, 
     QSizePolicy, QSplitter
 )
-from PySide6.QtGui import QPixmap, QImage, QIntValidator
+
+from PySide6.QtGui import QPixmap, QImage, QIntValidator, QShortcut, QKeySequence
 from PySide6.QtCore import Qt
 
 
@@ -73,6 +74,19 @@ class DatasetViewer(QMainWindow):
         self.init_ui()
         self.load_item()
 
+        self.setFocusPolicy(Qt.StrongFocus)
+
+        self.shortcut_prev = QShortcut(QKeySequence(Qt.Key_Left), self)
+        self.shortcut_prev.activated.connect(self.on_prev)
+
+        self.shortcut_next = QShortcut(QKeySequence(Qt.Key_Right), self)
+        self.shortcut_next.activated.connect(self.on_next)
+
+    # Force the main window to take focus so QComboBox doesn't swallow arrow keys on startup
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.setFocus()
+
     def init_ui(self):
         # Central widget and main layout
         main_widget = QWidget()
@@ -94,6 +108,8 @@ class DatasetViewer(QMainWindow):
         # Navigation: Prev
         self.btn_prev = QPushButton("◄ Previous")
         self.btn_prev.clicked.connect(self.on_prev)
+        # Optional: prevent the button from taking focus when clicked
+        self.btn_prev.setFocusPolicy(Qt.NoFocus) 
         controls_layout.addWidget(self.btn_prev)
 
         # Navigation: Index Input / Max
@@ -109,6 +125,8 @@ class DatasetViewer(QMainWindow):
         # Navigation: Next
         self.btn_next = QPushButton("Next ►")
         self.btn_next.clicked.connect(self.on_next)
+        # Optional: prevent the button from taking focus when clicked
+        self.btn_next.setFocusPolicy(Qt.NoFocus)
         controls_layout.addWidget(self.btn_next)
 
         main_layout.addLayout(controls_layout)
@@ -142,20 +160,6 @@ class DatasetViewer(QMainWindow):
         
         self.content_layout.addStretch()
         self.text_labels = {}
-
-    def keyPressEvent(self, event):
-        """Map keyboard arrows to previous and next actions."""
-        # Ignore arrow keys if the user is typing in the index input box
-        if isinstance(QApplication.focusWidget(), QLineEdit):
-            super().keyPressEvent(event)
-            return
-
-        if event.key() == Qt.Key_Right:
-            self.on_next()
-        elif event.key() == Qt.Key_Left:
-            self.on_prev()
-        else:
-            super().keyPressEvent(event)
 
     def load_item(self):
         split_data = self.dataset[self.current_split]
@@ -233,6 +237,9 @@ class DatasetViewer(QMainWindow):
         self.current_split = split_name
         self.current_index = 0
         self.load_item()
+        
+        # Return focus to window so arrows work right after changing splits
+        self.setFocus() 
 
     def on_index_jump(self):
         try:
@@ -241,8 +248,9 @@ class DatasetViewer(QMainWindow):
             idx = max(0, min(idx, max_idx)) # Clamp to valid range
             self.current_index = idx
             self.load_item()
-            # Remove focus from input to allow arrow keys to immediately navigate items again
-            self.index_input.clearFocus()
+            
+            # Return focus to window
+            self.setFocus()
         except ValueError:
             self.index_input.setText(str(self.current_index))
 
