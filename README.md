@@ -3,7 +3,7 @@
 > [!NOTE]
 > This project was generated using Gemini 3.1 Pro Preview (2026-04) and manually reviewed. Use at your own risk.
 
-A very simple viewer for image transcription datasets. Easily handles multi-GB datasets with at least 100 000 samples due to lazy loading of huggingface dataset library.
+A very simple viewer for image transcription datasets. Easily handles multi-GB datasets with over 100 000 samples due to lazy loading of huggingface dataset library.
 
 ## Features
 
